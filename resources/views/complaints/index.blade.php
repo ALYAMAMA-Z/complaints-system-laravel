@@ -11,10 +11,10 @@
     <style>
         body {
             font-family: 'Noto Sans Arabic', sans-serif;
-            background-color: #fdfaf3; /* أبيض عاجي ناعم */
+            background-color: #fdfaf3;
         }
         .navbar-custom {
-            background-color: #2b5e2b; /* أخضر زيتوني غامق */
+            background-color: #2b5e2b;
         }
         .navbar-custom .navbar-brand,
         .navbar-custom .nav-link {
@@ -28,7 +28,7 @@
             background-color: #1f451f;
         }
         .btn-success {
-            background-color: #8b5a2b; /* بني ترابي */
+            background-color: #8b5a2b;
             border-color: #6e451f;
         }
         .btn-success:hover {
@@ -51,6 +51,18 @@
             text-align: center;
             padding: 1rem;
             margin-top: 2rem;
+        }
+        .btn-group {
+            display: flex;
+            gap: 5px;
+        }
+        .btn-warning {
+            background-color: #f0ad4e;
+            border-color: #ec971f;
+        }
+        .btn-success {
+            background-color: #5cb85c;
+            border-color: #4cae4c;
         }
     </style>
 </head>
@@ -93,13 +105,19 @@
                                 <th>الوصف</th>
                                 <th>الحالة</th>
                                 <th>تاريخ الإرسال</th>
+                                <th>الصورة</th>
+                                <th>إجراءات</th>
+                                <th>الموقع</th>
                             </tr>
                         </thead>
                         <tbody>
                             @forelse($complaints as $complaint)
                             <tr>
+                                <!-- الاسم -->
                                 <td>{{ $complaint->citizen_name }}</td>
+                                <!-- الوصف -->
                                 <td>{{ \Illuminate\Support\Str::limit($complaint->description, 50) }}</td>
+                                <!-- الحالة -->
                                 <td>
                                     @if($complaint->status == 'pending')
                                         <span class="badge-status">⏳ قيد الانتظار</span>
@@ -109,15 +127,95 @@
                                         <span class="badge-status">✅ تم الحل</span>
                                     @endif
                                 </td>
+                                <!-- تاريخ الإرسال -->
                                 <td>{{ $complaint->created_at->format('Y-m-d') }}</td>
+                                <!-- الصورة -->
+                                <td>
+                                    @if($complaint->image)
+                                        <a href="{{ asset('storage/' . $complaint->image) }}" target="_blank">
+                                            <img src="{{ asset('storage/' . $complaint->image) }}" width="50" height="50" style="object-fit: cover; border-radius: 8px;">
+                                        </a>
+                                    @else
+                                        <span class="text-muted">لا توجد صورة</span>
+                                    @endif
+                                </td>
+                                <!-- الإجراءات (أزرار تغيير الحالة) -->
+                                <td>
+                                    <div class="btn-group" role="group">
+                                        <form action="{{ route('complaints.updateStatus', $complaint->id) }}" method="POST" style="display: inline-block;">
+                                            @csrf
+                                            @method('PATCH')
+                                            <input type="hidden" name="status" value="in_progress">
+                                            <button type="submit" class="btn btn-sm btn-warning" {{ $complaint->status == 'in_progress' ? 'disabled' : '' }}>
+                                                🛠️ قيد المعالجة
+                                            </button>
+                                        </form>
+                                        
+                                        <form action="{{ route('complaints.updateStatus', $complaint->id) }}" method="POST" style="display: inline-block;">
+                                            @csrf
+                                            @method('PATCH')
+                                            <input type="hidden" name="status" value="resolved">
+                                            <button type="submit" class="btn btn-sm btn-success" {{ $complaint->status == 'resolved' ? 'disabled' : '' }}>
+                                                ✅ تم الحل
+                                            </button>
+                                        </form>
+                                    </div>
+                                </td>
+                                <td>
+    @if($complaint->latitude && $complaint->longitude)
+        <button class="btn btn-sm btn-info" onclick="showLocation({{ $complaint->latitude }}, {{ $complaint->longitude }}, '{{ $complaint->citizen_name }}')">
+            <i class="fas fa-map"></i> عرض الخريطة
+        </button>
+    @else
+        <span class="text-muted">لا يوجد موقع</span>
+    @endif
+</td>
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="4" class="text-center text-muted">لا توجد شكاوى حتى الآن</td>
+                                <td colspan="6" class="text-center text-muted">لا توجد شكاوى حتى الآن</td>
                             </tr>
                             @endforelse
                         </tbody>
                     </table>
+                    <!-- خريطة لعرض موقع الشكوى المحددة -->
+<div class="card mt-4">
+    <div class="card-header" style="background-color: #2b5e2b; color: white;">
+        <i class="fas fa-map-marker-alt"></i> خريطة موقع الشكوى
+    </div>
+    <div class="card-body">
+        <div id="map" style="height: 400px; width: 100%; border-radius: 12px;"></div>
+        <p class="text-muted mt-2 text-center" id="selectedCoords">
+            اضغط على أي شكوى لعرض موقعها على الخريطة
+        </p>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+<script>
+    // تهيئة الخريطة
+    var map = L.map('map').setView([33.5138, 36.2765], 13);
+    var marker;
+    
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> & CartoDB',
+        subdomains: 'abcd',
+        maxZoom: 19
+    }).addTo(map);
+    
+    // دالة لعرض موقع على الخريطة
+    function showLocation(lat, lng, title) {
+        if (marker) {
+            map.removeLayer(marker);
+        }
+        marker = L.marker([lat, lng]).addTo(map);
+        map.setView([lat, lng], 15);
+        document.getElementById('selectedCoords').innerHTML = 
+            '<i class="fas fa-map-pin text-success"></i> ' + title + ' - الموقع: ' + lat.toFixed(6) + ', ' + lng.toFixed(6);
+    }
+</script>
                 </div>
             </div>
         </div>

@@ -16,5 +16,7 @@ class Complaint extends Model
         'latitude',
         'longitude',
         'status',
+        'image',
+        'user_id',
     ];
 }
